@@ -1,0 +1,55 @@
+name: Web2Apk Builder
+
+on:
+  workflow_dispatch:
+    inputs:
+      web_url:
+        description: 'URL website target'
+        required: true
+        type: string
+      app_name:
+        description: 'Nama aplikasi'
+        required: true
+        type: string
+      icon_url:
+        description: 'URL icon aplikasi'
+        required: false
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: stable
+
+      - name: Install dependencies
+        run: sudo apt-get install -y wget unzip
+
+      - name: Build Web2Apk
+        run: |
+          flutter create --org com.web2apk web2apk_project
+          cd web2apk_project
+          flutter pub get
+          flutter build apk --release
+          echo "APK_PATH=web2apk_project/build/app/outputs/flutter-apk/app-release.apk" >> $GITHUB_ENV
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web2apk-output
+          path: ${{ env.APK_PATH }}
+          retention-days: 1
