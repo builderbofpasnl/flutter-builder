@@ -38,25 +38,52 @@ jobs:
           channel: stable
 
       - name: Download & Extract ZIP
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          curl -L "${{ github.event.inputs.zip_url }}" -o project.zip
+          curl -L \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/octet-stream" \
+            "${{ github.event.inputs.zip_url }}" \
+            -o project.zip
+          if ! unzip -t project.zip > /dev/null 2>&1; then
+            echo "ERROR: File bukan ZIP valid!"
+            file project.zip
+            exit 1
+          fi
           unzip -q project.zip -d project_src
-          PROJECT_DIR=$(find project_src -name "pubspec.yaml" -maxdepth 4 | head -1 | xargs dirname)
+          PROJECT_DIR=$(find project_src -name "pubspec.yaml" -maxdepth 5 | head -1 | xargs dirname)
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "ERROR: pubspec.yaml tidak ditemukan!"
+            find project_src -type f | head -20
+            exit 1
+          fi
           echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+          echo "Project ditemukan di: $PROJECT_DIR"
 
       - name: Flutter pub get
-        run: cd "${{ env.PROJECT_DIR }}" && flutter pub get
+        run: |
+          cd "${{ env.PROJECT_DIR }}"
+          flutter pub get
 
       - name: Build APK
         run: |
           cd "${{ env.PROJECT_DIR }}"
           if [ "${{ github.event.inputs.build_type }}" = "debug" ]; then
-            flutter build apk --debug
+            flutter build apk --debug --no-tree-shake-icons
             echo "APK_PATH=${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-debug.apk" >> $GITHUB_ENV
           else
-            flutter build apk --release
+            flutter build apk --release --no-tree-shake-icons
             echo "APK_PATH=${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk" >> $GITHUB_ENV
           fi
+
+      - name: Verifikasi APK
+        run: |
+          if [ ! -f "${{ env.APK_PATH }}" ]; then
+            echo "ERROR: APK tidak ditemukan!"
+            exit 1
+          fi
+          echo "APK berhasil dibuat: $(du -h '${{ env.APK_PATH }}')"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
