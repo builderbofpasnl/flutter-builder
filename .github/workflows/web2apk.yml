@@ -44,7 +44,7 @@ jobs:
           flutter create --org com.web2apk web2apk_project
           cd web2apk_project
           flutter pub get
-          flutter build apk --release
+          flutter build apk --release --no-tree-shake-icons
           echo "APK_PATH=web2apk_project/build/app/outputs/flutter-apk/app-release.apk" >> $GITHUB_ENV
 
       - name: Upload APK artifact
