@@ -1,0 +1,66 @@
+name: Build Flutter APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      zip_url:
+        description: 'URL ZIP project Flutter'
+        required: true
+        type: string
+      tag:
+        description: 'Release tag'
+        required: true
+        type: string
+      build_type:
+        description: 'debug atau release'
+        required: false
+        default: 'release'
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: stable
+
+      - name: Download & Extract ZIP
+        run: |
+          curl -L "${{ github.event.inputs.zip_url }}" -o project.zip
+          unzip -q project.zip -d project_src
+          PROJECT_DIR=$(find project_src -name "pubspec.yaml" -maxdepth 4 | head -1 | xargs dirname)
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+
+      - name: Flutter pub get
+        run: cd "${{ env.PROJECT_DIR }}" && flutter pub get
+
+      - name: Build APK
+        run: |
+          cd "${{ env.PROJECT_DIR }}"
+          if [ "${{ github.event.inputs.build_type }}" = "debug" ]; then
+            flutter build apk --debug
+            echo "APK_PATH=${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-debug.apk" >> $GITHUB_ENV
+          else
+            flutter build apk --release
+            echo "APK_PATH=${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk" >> $GITHUB_ENV
+          fi
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: output-apk
+          path: ${{ env.APK_PATH }}
+          retention-days: 1
